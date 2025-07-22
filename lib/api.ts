@@ -15,15 +15,39 @@ export interface AnalysisRequest {
 
 export interface AnalysisResponse {
   id: string;
+  title: string;
+  content: string;
+  originalFileName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
+  type: string;
   status: "processing" | "completed" | "failed";
   analysis?: {
-    riskLevel: "low" | "medium" | "high";
-    summary: string;
-    keyFindings: string[];
-    recommendations: string[];
-    complianceIssues: string[];
+    document_id: string;
+    status: string;
+    analysis: {
+      summary: string;
+      hidden_clauses: string[];
+      risk_assessment: string;
+      loopholes: string[];
+      red_flags: string[];
+      risk_score: number;
+      confidence_rating: number;
+      key_concerns: string[];
+      analyzed_at: string;
+    };
+    processing_started_at: string;
+    processing_completed_at: string;
+    error_message: string | null;
   };
-  error?: string;
+  maskedContent: string | null;
+  processingStartedAt: string;
+  processingCompletedAt: string;
+  errorMessage: string | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UploadProgress {
@@ -197,11 +221,19 @@ class ApiService {
   }
 
   async getAnalysisStatus(analysisId: string): Promise<AnalysisResponse> {
-    return await this.request<AnalysisResponse>(`/analyze/${analysisId}`);
+    return await this.request<AnalysisResponse>(`/analysis/${analysisId}`);
+  }
+
+  async getAnalysisById(analysisId: string): Promise<AnalysisResponse> {
+    return await this.request<AnalysisResponse>(`/analysis/${analysisId}`);
+  }
+
+  async getDocumentById(documentId: string): Promise<AnalysisResponse> {
+    return await this.request<AnalysisResponse>(`/document/${documentId}`);
   }
 
   async getAnalysisHistory(): Promise<AnalysisResponse[]> {
-    return await this.request<AnalysisResponse[]>("/analyze/history");
+    return await this.request<AnalysisResponse[]>("/analysis/history");
   }
 
   private validateFile(file: File): void {

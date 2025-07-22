@@ -36,9 +36,9 @@ export default function DashboardPage() {
   }, []);
 
   const getRiskColor = (score: number) => {
-    if (score >= 8)
+    if (score >= 4)
       return "text-red-600 bg-gradient-to-r from-red-50 to-red-100 border-red-200";
-    if (score >= 6)
+    if (score >= 3)
       return "text-yellow-600 bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-200";
     return "text-green-600 bg-gradient-to-r from-green-50 to-green-100 border-green-200";
   };
@@ -175,7 +175,7 @@ export default function DashboardPage() {
             },
             {
               title: "Avg Risk Score",
-              value: `${stats.avgRiskScore}/10`,
+              value: `${stats.avgRiskScore}/5`,
               icon: TrendingUp,
               color: "from-purple-500 to-pink-500",
             },
@@ -328,15 +328,20 @@ export default function DashboardPage() {
                         document.riskScore
                       )}`}
                     >
-                      Risk: {document.riskScore}/10
+                      Risk: {document.riskScore}/5
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="hover:bg-blue-50 hover:border-blue-300 transition-all duration-300 hover:scale-105 bg-transparent"
+                    <Link
+                      href={`/results?documentId=${document.id}`}
+                      prefetch={false}
                     >
-                      View Details
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="hover:bg-blue-50 hover:border-blue-300 transition-all duration-300 hover:scale-105 bg-transparent"
+                      >
+                        View Details
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               ))}
