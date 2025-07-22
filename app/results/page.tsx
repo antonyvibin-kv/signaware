@@ -25,8 +25,10 @@ import {
   Shield,
   Sparkles,
   TrendingUp,
+  User,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 // Define types for the analysis data
 interface AnalysisData {
@@ -70,6 +72,8 @@ function ResultsPageContent() {
   const [isTyping, setIsTyping] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,8 +87,11 @@ function ResultsPageContent() {
           const parsedData = JSON.parse(storedData);
           setAnalysisData(parsedData);
         }
-      } catch (error) {
-        console.error("Error loading analysis data:", error);
+        setIsLoading(false);
+      } catch (err) {
+        console.error("Error loading analysis data:", err);
+        setError("Failed to load analysis data");
+        setIsLoading(false);
       }
     };
 
