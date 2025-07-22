@@ -22,6 +22,11 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
+
+// API configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || "v1"
 
 // Define types for the analysis data
 interface AnalysisData {
@@ -65,26 +70,55 @@ export default function ResultsPage() {
   const [isTyping, setIsTyping] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState("")
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     setIsVisible(true)
     
-    // Load analysis data from localStorage or API
-    const loadAnalysisData = () => {
+    // Get document ID from URL parameters
+    const documentId = searchParams.get('id')
+    
+    if (!documentId) {
+      setError("No document ID provided")
+      setLoading(false)
+      return
+    }
+    
+    // Fetch analysis data from API
+    const fetchAnalysisData = async () => {
       try {
-        const storedData = localStorage.getItem('analysisResult')
-        if (storedData) {
-          const parsedData = JSON.parse(storedData)
-          setAnalysisData(parsedData)
+        setLoading(true)
+        setError(null)
+        
+        const baseUrl = `${API_BASE_URL}/api/${API_VERSION}`
+        const response = await fetch(`${baseUrl}/documents/${documentId}`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(localStorage.getItem("auth_token") && {
+              Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+            }),
+          },
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch analysis data: ${response.status}`)
         }
+        
+        const data = await response.json()
+        setAnalysisData(data)
       } catch (error) {
-        console.error('Error loading analysis data:', error)
+        console.error('Error fetching analysis data:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load analysis data')
+      } finally {
+        setLoading(false)
       }
     }
     
-    loadAnalysisData()
-  }, [])
+    fetchAnalysisData()
+  }, [searchParams])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -203,12 +237,44 @@ export default function ResultsPage() {
   }
 
   // Loading state
-  if (!analysisData) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-lg text-slate-600">Loading analysis results...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <p className="text-lg text-slate-600">{error}</p>
+          <Link href="/analyze">
+            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white">
+              Back to Analysis
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (!analysisData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+          <p className="text-lg text-slate-600">No analysis data found for this document.</p>
+          <Link href="/analyze">
+            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white">
+              Back to Analysis
+            </Button>
+          </Link>
         </div>
       </div>
     )
