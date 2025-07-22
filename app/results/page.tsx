@@ -23,12 +23,39 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
+// Define types for the analysis data
+interface AnalysisData {
+  document_id: string
+  status: string
+  analysis: {
+    summary: string
+    hidden_clauses: string[]
+    risk_assessment: string
+    loopholes: string[]
+    red_flags: string[]
+    risk_score: number
+    confidence_rating: number
+    key_concerns: string[]
+    analyzed_at: string
+  }
+  processing_started_at: string
+  processing_completed_at: string
+  error_message: string | null
+}
+
+interface ChatMessage {
+  id: number
+  type: "bot" | "user"
+  content: string
+  timestamp: Date
+}
+
 export default function ResultsPage() {
   const [isVisible, setIsVisible] = useState(false)
-  const [chatMessages, setChatMessages] = useState([
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: 1,
-      type: "bot" as const,
+      type: "bot",
       content:
         "Hello! I've analyzed your document. Feel free to ask me any questions about the terms, risks, or specific clauses.",
       timestamp: new Date(),
@@ -37,10 +64,26 @@ export default function ResultsPage() {
   const [newMessage, setNewMessage] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState("")
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setIsVisible(true)
+    
+    // Load analysis data from localStorage or API
+    const loadAnalysisData = () => {
+      try {
+        const storedData = localStorage.getItem('analysisResult')
+        if (storedData) {
+          const parsedData = JSON.parse(storedData)
+          setAnalysisData(parsedData)
+        }
+      } catch (error) {
+        console.error('Error loading analysis data:', error)
+      }
+    }
+    
+    loadAnalysisData()
   }, [])
 
   const scrollToBottom = () => {
@@ -81,27 +124,49 @@ export default function ResultsPage() {
     if (!newMessage.trim()) return
 
     // Add user message
-    const userMessage = {
+    const userMessage: ChatMessage = {
       id: chatMessages.length + 1,
-      type: "user" as const,
+      type: "user",
       content: newMessage,
       timestamp: new Date(),
     }
     setChatMessages((prev) => [...prev, userMessage])
 
-    // Simulate bot response
-    const responses = [
-      "Based on the document analysis, this clause could potentially limit your rights in case of disputes. The arbitration requirement means you cannot pursue class action lawsuits.",
-      "This section contains a data retention policy that allows the company to keep your personal information for up to 7 years after account closure, which is longer than industry standard.",
-      "The automatic renewal clause is concerning because it requires 60 days notice to cancel, and the cancellation process is not clearly outlined in the document.",
-      "This liability limitation clause significantly reduces the company's responsibility for damages, even in cases of negligence or data breaches.",
-    ]
+    // Generate bot response based on analysis data
+    const generateResponse = () => {
+      if (!analysisData) {
+        return "I don't have access to the analysis data at the moment. Please try again later."
+      }
 
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)]
+      const userQuestion = newMessage.toLowerCase()
+      
+      if (userQuestion.includes('risk') || userQuestion.includes('score')) {
+        return `The overall risk score for this document is ${analysisData.analysis.risk_score}/10. ${analysisData.analysis.risk_assessment}`
+      } else if (userQuestion.includes('concern') || userQuestion.includes('issue')) {
+        const concerns = analysisData.analysis.key_concerns
+        const randomConcern = concerns[Math.floor(Math.random() * concerns.length)]
+        return `One key concern is: ${randomConcern}`
+      } else if (userQuestion.includes('flag') || userQuestion.includes('red')) {
+        const flags = analysisData.analysis.red_flags
+        const randomFlag = flags[Math.floor(Math.random() * flags.length)]
+        return `A red flag identified: ${randomFlag}`
+      } else if (userQuestion.includes('loophole')) {
+        if (analysisData.analysis.loopholes.length > 0) {
+          const loophole = analysisData.analysis.loopholes[Math.floor(Math.random() * analysisData.analysis.loopholes.length)]
+          return `A potential loophole: ${loophole}`
+        } else {
+          return "No specific loopholes were identified in this document."
+        }
+      } else {
+        return "Based on the document analysis, I can help you understand the risks, concerns, and key findings. What specific aspect would you like to know more about?"
+      }
+    }
+
+    const response = generateResponse()
     setNewMessage("")
 
     setTimeout(() => {
-      simulateTyping(randomResponse)
+      simulateTyping(response)
     }, 1000)
   }
 
@@ -110,57 +175,6 @@ export default function ResultsPage() {
       e.preventDefault()
       handleSendMessage()
     }
-  }
-
-  const analysisData = {
-    riskScore: 7.2,
-    documentTitle: "Terms of Service - TechCorp Platform",
-    summary:
-      "This Terms of Service agreement contains several concerning clauses that significantly favor the service provider. Key issues include broad liability limitations, automatic data collection rights, and restrictive dispute resolution requirements.",
-    loopholes: [
-      {
-        title: "Unilateral Terms Modification",
-        description:
-          "The company reserves the right to modify terms at any time without explicit user consent, only requiring email notification.",
-        severity: "high",
-      },
-      {
-        title: "Broad Data Usage Rights",
-        description:
-          "Vague language grants extensive rights to use, modify, and distribute user-generated content for commercial purposes.",
-        severity: "high",
-      },
-      {
-        title: "Limited Liability Coverage",
-        description:
-          "Liability is capped at the amount paid in the last 12 months, which may be insufficient for actual damages.",
-        severity: "medium",
-      },
-    ],
-    risks: [
-      {
-        category: "Privacy",
-        score: 8,
-        description: "Extensive data collection with broad usage rights and third-party sharing permissions.",
-      },
-      {
-        category: "Financial",
-        score: 6,
-        description: "Automatic billing renewal with complex cancellation procedures.",
-      },
-      {
-        category: "Legal",
-        score: 8,
-        description: "Mandatory arbitration clause prevents class action lawsuits.",
-      },
-    ],
-    concerns: [
-      "Automatic renewal with 60-day cancellation notice requirement",
-      "Arbitration clause limits legal recourse options",
-      "Data retention policy extends beyond account closure",
-      "Indemnification clause transfers liability to users",
-      "Intellectual property assignment is overly broad",
-    ],
   }
 
   const getSeverityColor = (severity: string) => {
@@ -186,6 +200,18 @@ export default function ResultsPage() {
     if (score >= 8) return "from-red-500 to-red-600"
     if (score >= 6) return "from-yellow-500 to-yellow-600"
     return "from-green-500 to-green-600"
+  }
+
+  // Loading state
+  if (!analysisData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-lg text-slate-600">Loading analysis results...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -233,16 +259,16 @@ export default function ResultsPage() {
               <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">
                 Document Analysis Results
               </h1>
-              <p className="text-lg text-slate-600">{analysisData.documentTitle}</p>
+              <p className="text-lg text-slate-600">Document ID: {analysisData.document_id}</p>
             </div>
             <div className="text-right">
               <div className="text-sm text-slate-500 mb-2">Overall Risk Score</div>
               <div className="relative">
-                <div className={`text-4xl font-bold ${getRiskColor(analysisData.riskScore)} animate-pulse`}>
-                  {analysisData.riskScore}/10
+                <div className={`text-4xl font-bold ${getRiskColor(analysisData.analysis.risk_score)} animate-pulse`}>
+                  {analysisData.analysis.risk_score}/10
                 </div>
                 <div className="flex items-center space-x-2 mt-2">
-                  <TrendingUp className={`h-4 w-4 ${getRiskColor(analysisData.riskScore)}`} />
+                  <TrendingUp className={`h-4 w-4 ${getRiskColor(analysisData.analysis.risk_score)}`} />
                   <span className="text-sm text-slate-500">Risk Assessment</span>
                 </div>
               </div>
@@ -264,22 +290,22 @@ export default function ResultsPage() {
                   Summary
                 </TabsTrigger>
                 <TabsTrigger
-                  value="loopholes"
+                  value="red_flags"
                   className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-pink-500 data-[state=active]:text-white"
                 >
-                  Loopholes
-                </TabsTrigger>
-                <TabsTrigger
-                  value="risks"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white"
-                >
-                  Risk Analysis
+                  Red Flags
                 </TabsTrigger>
                 <TabsTrigger
                   value="concerns"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-yellow-500 data-[state=active]:to-orange-500 data-[state=active]:text-white"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white"
                 >
                   Key Concerns
+                </TabsTrigger>
+                <TabsTrigger
+                  value="assessment"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-yellow-500 data-[state=active]:to-orange-500 data-[state=active]:text-white"
+                >
+                  Risk Assessment
                 </TabsTrigger>
               </TabsList>
 
@@ -296,36 +322,45 @@ export default function ResultsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-slate-700 leading-relaxed text-lg">{analysisData.summary}</p>
+                    <p className="text-slate-700 leading-relaxed text-lg">{analysisData.analysis.summary}</p>
                   </CardContent>
                 </Card>
               </TabsContent>
 
-              <TabsContent value="loopholes" className="space-y-4">
-                {analysisData.loopholes.map((loophole, index) => (
-                  <Card
-                    key={index}
-                    className={`shadow-xl bg-white/80 backdrop-blur-sm border-0 hover:shadow-2xl transition-all duration-500 hover:scale-102 animate-fade-in-up delay-${index * 100}`}
-                  >
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                          {loophole.title}
-                        </CardTitle>
-                        <Badge className={`${getSeverityColor(loophole.severity)} border-2 font-semibold px-3 py-1`}>
-                          {loophole.severity.toUpperCase()}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-slate-700 leading-relaxed">{loophole.description}</p>
+              <TabsContent value="red_flags" className="space-y-4">
+                {analysisData.analysis.red_flags.length > 0 ? (
+                  analysisData.analysis.red_flags.map((flag, index) => (
+                    <Card
+                      key={index}
+                      className={`shadow-xl bg-white/80 backdrop-blur-sm border-0 hover:shadow-2xl transition-all duration-500 hover:scale-102 animate-fade-in-up delay-${index * 100}`}
+                    >
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                            Red Flag #{index + 1}
+                          </CardTitle>
+                          <Badge className="bg-gradient-to-r from-red-100 to-red-200 text-red-800 border-red-300 border-2 font-semibold px-3 py-1">
+                            HIGH
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-slate-700 leading-relaxed">{flag}</p>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <Card className="shadow-xl bg-white/80 backdrop-blur-sm border-0 hover:shadow-2xl transition-all duration-500">
+                    <CardContent className="text-center py-8">
+                      <AlertTriangle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                      <p className="text-slate-600">No red flags identified in this document.</p>
                     </CardContent>
                   </Card>
-                ))}
+                )}
               </TabsContent>
 
-              <TabsContent value="risks" className="space-y-4">
-                {analysisData.risks.map((risk, index) => (
+              <TabsContent value="concerns" className="space-y-4">
+                {analysisData.analysis.key_concerns.map((concern, index) => (
                   <Card
                     key={index}
                     className={`shadow-xl bg-white/80 backdrop-blur-sm border-0 hover:shadow-2xl transition-all duration-500 hover:scale-102 animate-fade-in-up delay-${index * 100}`}
@@ -333,57 +368,45 @@ export default function ResultsPage() {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-lg bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                          {risk.category} Risk
+                          Concern #{index + 1}
                         </CardTitle>
-                        <div className={`text-2xl font-bold ${getRiskColor(risk.score)} animate-pulse`}>
-                          {risk.score}/10
+                        <div className="text-2xl font-bold text-yellow-600 animate-pulse">
+                          ⚠️
                         </div>
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="relative mb-4">
-                        <Progress value={risk.score * 10} className="h-3" />
-                        <div
-                          className={`absolute inset-0 bg-gradient-to-r ${getRiskGradient(risk.score)} rounded-full opacity-20 animate-pulse`}
-                        ></div>
-                      </div>
-                      <p className="text-slate-700 leading-relaxed">{risk.description}</p>
+                      <p className="text-slate-700 leading-relaxed">{concern}</p>
                     </CardContent>
                   </Card>
                 ))}
               </TabsContent>
 
-              <TabsContent value="concerns" className="space-y-4">
+              <TabsContent value="assessment" className="space-y-4">
                 <Card className="shadow-xl bg-white/80 backdrop-blur-sm border-0 hover:shadow-2xl transition-all duration-500">
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
-                      <div className="bg-gradient-to-r from-yellow-500 to-orange-500 p-2 rounded-lg animate-pulse">
-                        <AlertTriangle className="h-5 w-5 text-white" />
+                      <div className="bg-gradient-to-r from-purple-500 to-indigo-500 p-2 rounded-lg animate-pulse">
+                        <TrendingUp className="h-5 w-5 text-white" />
                       </div>
                       <span className="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                        Key Concerns
+                        Risk Assessment
                       </span>
                     </CardTitle>
-                    <CardDescription className="text-base">
-                      Important issues you should be aware of before agreeing to this document
-                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ul className="space-y-4">
-                      {analysisData.concerns.map((concern, index) => (
-                        <li
-                          key={index}
-                          className={`flex items-start space-x-4 group p-3 rounded-lg hover:bg-yellow-50 transition-all duration-300 animate-fade-in-left delay-${index * 100}`}
-                        >
-                          <div className="bg-gradient-to-r from-yellow-500 to-orange-500 p-1 rounded-full group-hover:scale-110 transition-transform duration-300">
-                            <AlertTriangle className="h-4 w-4 text-white" />
-                          </div>
-                          <span className="text-slate-700 group-hover:text-slate-900 transition-colors duration-300 leading-relaxed">
-                            {concern}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="relative mb-4">
+                      <Progress value={analysisData.analysis.risk_score * 10} className="h-3" />
+                      <div
+                        className={`absolute inset-0 bg-gradient-to-r ${getRiskGradient(analysisData.analysis.risk_score)} rounded-full opacity-20 animate-pulse`}
+                      ></div>
+                    </div>
+                    <p className="text-slate-700 leading-relaxed text-lg">{analysisData.analysis.risk_assessment}</p>
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>Confidence Rating:</strong> {analysisData.analysis.confidence_rating}%
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
