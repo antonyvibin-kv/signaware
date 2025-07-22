@@ -163,11 +163,11 @@ class ApiService {
       } else if (request.text) {
         console.log('request.text !!!', request.text)
         // Analyze text directly
-        return await this.request<AnalysisResponse>('/analyze', {
+        return await this.request<AnalysisResponse>('/analysis/analyze-text', {
           method: 'POST',
           body: JSON.stringify({
-            text: request.text,
-            type: 'text'
+            content: request.text,
+            analysisType: "legal"
           })
         })
       } else {
