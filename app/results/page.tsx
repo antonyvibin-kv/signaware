@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiService } from "@/lib/api";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -26,11 +25,8 @@ import {
   Shield,
   Sparkles,
   TrendingUp,
-  User,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
 
 // Define types for the analysis data
 interface AnalysisData {
@@ -74,70 +70,26 @@ function ResultsPageContent() {
   const [isTyping, setIsTyping] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     setIsVisible(true);
 
     // Load analysis data from localStorage or API
-    const loadAnalysisData = async () => {
+    const loadAnalysisData = () => {
       try {
-        setIsLoading(true);
-        setError(null);
-
-        const analysisId = searchParams.get("id");
-        const documentId = searchParams.get("documentId");
-
-        // Try to get from localStorage first
         const storedData = localStorage.getItem("analysisResult");
         if (storedData) {
           const parsedData = JSON.parse(storedData);
           setAnalysisData(parsedData);
-          setIsLoading(false);
-          return;
-        }
-
-        // If no localStorage data and we have an ID, fetch from API
-        if (documentId) {
-          const response = await apiService.getDocumentById(documentId);
-          if (response.analysis) {
-            setAnalysisData(response.analysis);
-            // Store in localStorage for future use
-            localStorage.setItem(
-              "analysisResult",
-              JSON.stringify(response.analysis)
-            );
-          } else {
-            setError("Analysis data not found");
-          }
-        } else if (analysisId) {
-          const response = await apiService.getAnalysisById(analysisId);
-          if (response.analysis) {
-            setAnalysisData(response.analysis);
-            // Store in localStorage for future use
-            localStorage.setItem(
-              "analysisResult",
-              JSON.stringify(response.analysis)
-            );
-          } else {
-            setError("Analysis data not found");
-          }
-        } else {
-          setError("No analysis or document ID provided");
         }
       } catch (error) {
         console.error("Error loading analysis data:", error);
-        setError("Failed to load analysis data");
-      } finally {
-        setIsLoading(false);
       }
     };
 
     loadAnalysisData();
-  }, [searchParams]);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -312,6 +264,40 @@ function ResultsPageContent() {
   // At this point, analysisData is guaranteed to be non-null due to early returns above
   if (!analysisData) {
     return null; // This should never happen due to checks above
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <p className="text-lg text-slate-600">{error}</p>
+          <Link href="/analyze">
+            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white">
+              Back to Analysis
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analysisData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+          <p className="text-lg text-slate-600">
+            No analysis data found for this document.
+          </p>
+          <Link href="/analyze">
+            <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white">
+              Back to Analysis
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
