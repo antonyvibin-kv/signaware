@@ -50,7 +50,7 @@ export function useAuth(): UseAuthReturn {
   }, [])
 
   const handleAuthSuccess = useCallback((authResponse: AuthResponse) => {
-    authService.setTokens(authResponse.token, authResponse.refreshToken)
+    authService.setTokens(authResponse.accessToken, authResponse.refreshToken)
     setUser(authResponse.user)
     setError(null)
   }, [])

@@ -23,12 +23,16 @@ export interface AuthResponse {
     role: string
     avatar?: string
   }
-  token: string
+  accessToken: string
   refreshToken?: string
 }
 
 export interface GoogleAuthRequest {
   token: string
+}
+
+export interface UpdateRoleRequest {
+  role: string
 }
 
 interface FirebaseServiceAccount {
@@ -166,6 +170,21 @@ class AuthService {
       headers: {
         'Authorization': `Bearer ${token}`
       }
+    })
+  }
+
+  async updateUserRole(userId: string, role: string): Promise<AuthResponse['user']> {
+    const token = this.getToken()
+    if (!token) {
+      throw new Error('No authentication token')
+    }
+
+    return await this.request<AuthResponse['user']>(`/users/${userId}/role`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ role })
     })
   }
 

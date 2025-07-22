@@ -16,43 +16,14 @@ import {
   TrendingUp,
   Clock,
   AlertTriangle,
+  Loader2,
+  RefreshCw,
 } from "lucide-react"
+import { useDashboard } from "@/hooks/useDashboard"
 
 export default function DashboardPage() {
   const [isVisible, setIsVisible] = useState(false)
-  const [recentAnalyses] = useState([
-    {
-      id: 1,
-      title: "Terms of Service - TechCorp",
-      date: "2024-01-15",
-      riskScore: 7.2,
-      status: "completed",
-      type: "Terms of Service",
-    },
-    {
-      id: 2,
-      title: "Employment Contract - StartupXYZ",
-      date: "2024-01-14",
-      riskScore: 4.8,
-      status: "completed",
-      type: "Employment Contract",
-    },
-    {
-      id: 3,
-      title: "Privacy Policy - SocialApp",
-      date: "2024-01-13",
-      riskScore: 8.5,
-      status: "completed",
-      type: "Privacy Policy",
-    },
-  ])
-
-  const [stats] = useState({
-    totalAnalyses: 24,
-    avgRiskScore: 6.2,
-    documentsThisMonth: 8,
-    timesSaved: "12 hours",
-  })
+  const { data, isLoading, error, refetch } = useDashboard()
 
   useEffect(() => {
     setIsVisible(true)
@@ -76,6 +47,46 @@ export default function DashboardPage() {
         return "📄"
     }
   }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-slate-700 mb-2">Loading Dashboard</h2>
+          <p className="text-slate-500">Fetching your data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-slate-700 mb-2">Failed to Load Dashboard</h2>
+          <p className="text-slate-500 mb-6">{error}</p>
+          <Button onClick={refetch} className="bg-blue-600 hover:bg-blue-700">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Use API data or fallback to empty state
+  const stats = data?.stats || {
+    totalAnalyses: 0,
+    avgRiskScore: 0,
+    documentsThisMonth: 0,
+    timesSaved: "0 hours",
+  }
+
+  const recentAnalyses = data?.recentAnalyses || []
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">

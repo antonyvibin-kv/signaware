@@ -27,6 +27,23 @@ export interface UploadProgress {
   percentage: number
 }
 
+export interface DashboardResponse {
+  stats: {
+    totalAnalyses: number
+    avgRiskScore: number
+    documentsThisMonth: number
+    timesSaved: string
+  }
+  recentAnalyses: Array<{
+    id: number
+    title: string
+    date: string
+    riskScore: number
+    status: string
+    type: string
+  }>
+}
+
 class ApiService {
   private baseUrl: string
 
@@ -91,10 +108,11 @@ class ApiService {
       })
 
       xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
+        if (xhr.status === 201) {
           try {
             const response = JSON.parse(xhr.responseText)
-            resolve(response.fileId)
+            console.log('response', response)
+            resolve(response.id)
           } catch (error) {
             reject(new Error('Invalid response format'))
           }
@@ -114,7 +132,7 @@ class ApiService {
 
       // Add auth header to upload request
       const token = localStorage.getItem('auth_token')
-      xhr.open('POST', `${this.baseUrl}/upload`)
+      xhr.open('POST', `${this.baseUrl}/documents/upload`)
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`)
       }
@@ -133,9 +151,9 @@ class ApiService {
         
         // Upload file first
         const fileId = await this.uploadFile(request.file, onProgress)
-        
+        console.log('fileId', fileId)
         // Start analysis
-        return await this.request<AnalysisResponse>('/analyze', {
+        return await this.request<AnalysisResponse>(`/documents/${fileId}/analyze`, {
           method: 'POST',
           body: JSON.stringify({
             fileId,
@@ -143,6 +161,7 @@ class ApiService {
           })
         })
       } else if (request.text) {
+        console.log('request.text !!!', request.text)
         // Analyze text directly
         return await this.request<AnalysisResponse>('/analyze', {
           method: 'POST',
@@ -184,6 +203,11 @@ class ApiService {
   // Health check method
   async healthCheck(): Promise<{ status: string; timestamp: string }> {
     return await this.request<{ status: string; timestamp: string }>('/health')
+  }
+
+  // Dashboard method
+  async getDashboard(): Promise<DashboardResponse> {
+    return await this.request<DashboardResponse>('/dashboard')
   }
 }
 

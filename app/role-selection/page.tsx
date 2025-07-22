@@ -1,15 +1,52 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Shield, Scale, User, CheckCircle } from "lucide-react"
+import { authService } from "@/lib/auth"
 
 export default function RoleSelectionPage() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [isLoadingUser, setIsLoadingUser] = useState(true)
   const router = useRouter()
+
+  // Get current user on component mount
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const user = await authService.getCurrentUser()
+        setCurrentUser(user)
+      } catch (error) {
+        console.error('Failed to get current user:', error)
+        // Redirect to login if not authenticated
+        router.push('/login')
+      } finally {
+        setIsLoadingUser(false)
+      }
+    }
+
+    getCurrentUser()
+  }, [router])
+
+  // Show loading state while fetching user
+  if (isLoadingUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="inline-flex items-center space-x-2 mb-4">
+            <Shield className="h-8 w-8 text-blue-600" />
+            <span className="text-2xl font-bold text-slate-900">SignAware</span>
+          </div>
+          <p className="text-lg text-slate-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   const roles = [
     {
@@ -43,14 +80,25 @@ export default function RoleSelectionPage() {
   ]
 
   const handleContinue = async () => {
-    if (!selectedRole) return
+    if (!selectedRole || !currentUser) return
 
     setIsLoading(true)
+    setError(null)
 
-    // Simulate API call to save role preference
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    router.push("/dashboard")
+    try {
+      // Map the selected role to the backend role format
+      const backendRole = selectedRole === "legal-professional" ? "legal_advisor" : "client"
+      
+      // Call the backend API to update user role
+      await authService.updateUserRole(currentUser.id, backendRole)
+      
+      router.push("/dashboard")
+    } catch (error) {
+      console.error('Failed to update user role:', error)
+      setError(error instanceof Error ? error.message : 'Failed to update role. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -119,6 +167,12 @@ export default function RoleSelectionPage() {
           </Button>
 
           {!selectedRole && <p className="text-sm text-slate-500 mt-2">Please select a role to continue</p>}
+          
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
