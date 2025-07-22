@@ -62,24 +62,50 @@ class AuthService {
     }
 
     try {
-      // Load service account JSON from public directory
-      const response = await fetch('/firebase-service-account.json')
-      const serviceAccount: FirebaseServiceAccount = await response.json()
-      
-      this.firebaseConfig = {
-        apiKey: serviceAccount.client_id,
-        authDomain: `${serviceAccount.project_id}.firebaseapp.com`,
-        projectId: serviceAccount.project_id,
-        storageBucket: `${serviceAccount.project_id}.appspot.com`,
-        messagingSenderId: serviceAccount.client_id,
-        appId: serviceAccount.client_id,
-        serviceAccount: serviceAccount
+      // Try to load Firebase config from config file first
+      let firebaseConfig = null
+      try {
+        const configResponse = await fetch('/firebase-config.json')
+        if (configResponse.ok) {
+          firebaseConfig = await configResponse.json()
+        }
+      } catch (error) {
+        console.log('Firebase config file not found, using environment variables')
       }
 
+      // If no config file, use environment variables
+      if (!firebaseConfig) {
+        firebaseConfig = {
+          apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+          storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+          messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+          appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+        }
+      }
+
+      // Validate that we have the required API key
+      if (!firebaseConfig.apiKey) {
+        throw new Error('Firebase API key is required. Please set NEXT_PUBLIC_FIREBASE_API_KEY in your environment variables or update firebase-config.json.')
+      }
+
+      // Load service account for additional info
+      try {
+        const serviceAccountResponse = await fetch('/firebase-service-account.json')
+        if (serviceAccountResponse.ok) {
+          const serviceAccount: FirebaseServiceAccount = await serviceAccountResponse.json()
+          firebaseConfig.serviceAccount = serviceAccount
+        }
+      } catch (error) {
+        console.log('Service account file not found, continuing without it')
+      }
+
+      this.firebaseConfig = firebaseConfig
       return this.firebaseConfig
     } catch (error) {
       console.error('Failed to load Firebase config:', error)
-      throw new Error('Firebase configuration not found')
+      throw new Error('Firebase configuration not found. Please check your environment variables or firebase-config.json file.')
     }
   }
 
@@ -239,43 +265,76 @@ class AuthService {
   }
 
   async signInWithFirebaseGoogle(): Promise<AuthResponse> {
-    await this.initializeFirebaseAuth()
+    try {
+      await this.initializeFirebaseAuth()
 
-    return new Promise((resolve, reject) => {
       if (!window.firebase) {
-        reject(new Error('Firebase not loaded'))
-        return
+        throw new Error('Firebase SDK failed to load. Please check your internet connection.')
       }
 
-      this.loadFirebaseConfig()
-        .then((firebaseConfig) => {
-          if (!window.firebase.apps.length) {
-            window.firebase.initializeApp(firebaseConfig)
-          }
+      const firebaseConfig = await this.loadFirebaseConfig()
+      
+      // Initialize Firebase app if not already initialized
+      if (!window.firebase.apps.length) {
+        window.firebase.initializeApp(firebaseConfig)
+      }
 
-          const provider = new window.firebase.auth.GoogleAuthProvider()
-          
-          window.firebase.auth().signInWithPopup(provider)
-            .then(async (result: any) => {
-              try {
-                // Get the ID token from Firebase
-                const idToken = await result.user.getIdToken()
-                
-                // Send the ID token to your backend
-                const authResponse = await this.googleAuth(idToken)
-                resolve(authResponse)
-              } catch (error) {
-                reject(error)
-              }
-            })
-            .catch((error: any) => {
-              reject(new Error(error.message))
-            })
-        })
-        .catch((error) => {
-          reject(error)
-        })
-    })
+      const provider = new window.firebase.auth.GoogleAuthProvider()
+      
+      // Add additional scopes if needed
+      provider.addScope('email')
+      provider.addScope('profile')
+      
+      // Set custom parameters
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      })
+
+      return new Promise((resolve, reject) => {
+        window.firebase.auth().signInWithPopup(provider)
+          .then(async (result: any) => {
+            try {
+              // Get the ID token from Firebase
+              const idToken = await result.user.getIdToken()
+              
+              // Send the ID token to your backend
+              const authResponse = await this.googleAuth(idToken)
+              resolve(authResponse)
+            } catch (error) {
+              console.error('Error getting ID token:', error)
+              reject(new Error('Failed to get authentication token. Please try again.'))
+            }
+          })
+          .catch((error: any) => {
+            console.error('Firebase auth error:', error)
+            
+            // Handle specific Firebase errors
+            let errorMessage = 'Google sign-in failed. Please try again.'
+            
+            switch (error.code) {
+              case 'auth/popup-closed-by-user':
+                errorMessage = 'Sign-in was cancelled. Please try again.'
+                break
+              case 'auth/popup-blocked':
+                errorMessage = 'Pop-up was blocked. Please allow pop-ups for this site and try again.'
+                break
+              case 'auth/unauthorized-domain':
+                errorMessage = 'This domain is not authorized for Google sign-in.'
+                break
+              case 'auth/network-request-failed':
+                errorMessage = 'Network error. Please check your internet connection.'
+                break
+              default:
+                errorMessage = error.message || 'Google sign-in failed. Please try again.'
+            }
+            
+            reject(new Error(errorMessage))
+          })
+      })
+    } catch (error) {
+      console.error('Firebase initialization error:', error)
+      throw error
+    }
   }
 
   // Alternative method using Google OAuth directly
